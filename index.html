@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WA Extractor Pro v2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <style>
+        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.3); }
+        body { background: radial-gradient(circle at top right, #e2e8f0, #ffffff); min-height: 100vh; font-family: 'Inter', sans-serif; }
+        .drop-zone { border: 2px dashed #cbd5e1; transition: all 0.3s; }
+        .drop-zone.active { border-color: #2563eb; background: rgba(37, 99, 235, 0.05); }
+    </style>
+</head>
+<body class="p-4 md:p-10 text-slate-800">
+
+    <div class="max-w-6xl mx-auto">
+        <div class="glass rounded-[2rem] p-8 shadow-2xl mb-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div>
+                <h1 class="text-4xl font-black tracking-tighter text-slate-900">WA CLEANER <span class="text-blue-600">2026</span></h1>
+                <p class="text-slate-500 font-medium">Upload Excel/CSV • Auto-Format 62 • Ready to Blast</p>
+            </div>
+            <button id="downloadBtn" style="display:none;" class="bg-slate-900 hover:bg-black text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-xl hover:scale-105 active:scale-95 flex items-center gap-2">
+                📥 DOWNLOAD HASIL (.CSV)
+            </button>
+        </div>
+
+        <div id="dropZone" class="glass rounded-[2rem] p-12 shadow-xl mb-8 text-center drop-zone cursor-pointer">
+            <div class="flex flex-col items-center">
+                <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold mb-1">Klik atau Seret File Excel/CSV di sini</h3>
+                <p class="text-slate-400">Sistem akan otomatis mengambil kolom Name, Account, M, N, & Amount</p>
+                <input type="file" id="fileInput" class="hidden" accept=".xlsx, .xls, .csv">
+            </div>
+        </div>
+
+        <div id="tableContainer" style="display:none;" class="glass rounded-[2rem] p-6 shadow-xl overflow-hidden">
+            <table id="resultTable" class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-slate-400 text-sm uppercase tracking-wider">
+                        <th class="p-4">Name</th>
+                        <th class="p-4">Account</th>
+                        <th class="p-4 text-blue-600">Invoice (M)</th>
+                        <th class="p-4 text-green-600">Delivery (N)</th>
+                        <th class="p-4">Amount</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        let finalData = [];
+
+        // UI Interactions
+        dropZone.onclick = () => fileInput.click();
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('active'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('active');
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('active');
+            handleFile(e.dataTransfer.files[0]);
+        };
+
+        fileInput.onchange = (e) => handleFile(e.target.files[0]);
+
+        function cleanPhone(val) {
+            if (!val) return "";
+            // 1. Split by / or , ambil nomor pertama
+            let firstPart = String(val).split(/[\\/ ,;]/)[0];
+            // 2. Ambil angka saja
+            let num = firstPart.replace(/\D/g, '');
+            if (!num) return "";
+            // 3. Convert ke 62
+            if (num.startsWith('08')) num = '62' + num.substring(1);
+            else if (num.startsWith('8')) num = '62' + num;
+            // 4. Validasi WA (628... & 11-15 digit)
+            return (num.startsWith('628') && num.length >= 11 && num.length <= 15) ? num : "";
+        }
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]]; // Atau workbook.Sheets["Sheet2"]
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                processData(jsonData);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processData(raw) {
+            finalData = raw.map(row => {
+                let invoice = cleanPhone(row['Invoice contact'] || row['Invoicecontact']);
+                let delivery = cleanPhone(row['Delivery contact']);
+                
+                return {
+                    'Name': row['Name'] || "",
+                    'Customer account': row['Customer account'] || "",
+                    'Invoice contact': invoice,
+                    'Delivery contact': delivery,
+                    'Sales amount': row['Sales amount'] || row['Net Amount'] || 0
+                };
+            }).filter(row => row['Invoice contact'] !== "" || row['Delivery contact'] !== "");
+
+            renderTable(finalData);
+            document.getElementById('downloadBtn').style.display = 'block';
+            document.getElementById('tableContainer').style.display = 'block';
+        }
+
+        function renderTable(data) {
+            if ($.fn.DataTable.isDataTable('#resultTable')) {
+                $('#resultTable').DataTable().destroy();
+            }
+
+            $('#resultTable').DataTable({
+                data: data,
+                columns: [
+                    { data: 'Name' },
+                    { data: 'Customer account' },
+                    { data: 'Invoice contact', render: d => d ? `<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-mono text-xs font-bold">${d}</span>` : "" },
+                    { data: 'Delivery contact', render: d => d ? `<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full font-mono text-xs font-bold">${d}</span>` : "" },
+                    { data: 'Sales amount', render: d => new Intl.NumberFormat('id-ID').format(d) }
+                ],
+                responsive: true,
+                language: { search: "Cari Data:" }
+            });
+        }
+
+        document.getElementById('downloadBtn').onclick = () => {
+            const worksheet = XLSX.utils.json_to_sheet(finalData);
+            const csvOutput = XLSX.utils.sheet_to_csv(worksheet);
+            const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", "data_siap_blast_wa.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+    </script>
+</body>
+</html>
